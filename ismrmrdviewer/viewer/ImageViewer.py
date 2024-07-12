@@ -4,9 +4,9 @@ import pdb
 import matplotlib.pyplot as pyplot
 import matplotlib.animation as animation
 
-from PySide2 import QtCore, QtGui, QtWidgets as QTW
+from PySide6 import QtCore, QtGui, QtWidgets as QTW
 
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
 DIMS = ('Instance', 'Channel', 'Slice')
@@ -167,8 +167,8 @@ class ImageViewer(QTW.QWidget):
 
     def mouseMoveEvent(self, event):
         "Provides window/level mouse-drag behavior."
-        newx = event.x()
-        newy = event.y()
+        newx = event.position().x()
+        newy = event.position().y()
         if self.mloc is None:
             self.mloc = (newx, newy)
             return 
@@ -206,9 +206,18 @@ class ImageViewer(QTW.QWidget):
     def wheelEvent(self, event):
         "Handle scroll event; could use some time-based limiting."
         control = self.selected['Instance']
-        if event.delta() > 0:
+
+        num_pixels = event.pixelDelta()
+        num_degrees = event.angleDelta() / 8
+        delta_steps = 0
+        if not num_pixels.isNull():
+            delta_steps = num_pixels.y()
+        elif not num_degrees.isNull():
+            delta_steps = num_degrees.y() / 15
+
+        if delta_steps > 0:
             new_v = control.value() - 1
-        elif event.delta() < 0:
+        elif delta_steps < 0:
             new_v = control.value() + 1
         else:
             return

@@ -1,11 +1,11 @@
 #!/usr/bin/env python
-from PySide2 import QtCore
+from PySide6 import QtCore
 import ismrmrdviewer.ui as ui
 import sys
 import logging
 import argparse
 
-from PySide2 import QtWidgets
+from PySide6 import QtWidgets
 
 
 def main():
@@ -28,7 +28,7 @@ def main():
     if args.file:
         main.open_file(args.file)
 
-    sys.exit(app.exec_())
+    sys.exit(app.exec())
 
 
 if __name__ == '__main__':
