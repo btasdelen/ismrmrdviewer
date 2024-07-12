@@ -53,7 +53,11 @@ class ImageViewer(QTW.QWidget):
         controls.addWidget(self.animDim)
         controls.addStretch()
 
+        self.transpose = QTW.QPushButton("Transpose")
+        controls.addWidget(self.transpose)
+
         self.animate.stateChanged.connect(self.animation)
+        self.transpose.pressed.connect(self.transpose_image)
         self.animDim.currentIndexChanged.connect(self.check_dim)
 
         # Window/level controls; Add a widget with a horizontal layout
@@ -98,7 +102,7 @@ class ImageViewer(QTW.QWidget):
 
 
         
-        self.stack = numpy.array(self.container.images.data)
+        self.stack = numpy.flip(numpy.rot90(numpy.array(self.container.images.data), axes=(3,4)), axis=4)
         if self.stack.shape[0] == 1:
             self.animate.setEnabled(False)
 
@@ -247,6 +251,13 @@ class ImageViewer(QTW.QWidget):
         self.canvas.draw()
         idx = self.container.images.headers[self.frame()]
         self.label.setText(self.label_base.format(int(idx['average']),int(idx['slice']),int(idx['contrast']),int(idx['phase']),int(idx['repetition']),int(idx['set'])))
+
+    def transpose_image(self):
+
+        self.stack = self.stack.swapaxes(3,4)
+        self.update_image()
+
+
 
     def animation(self):
         """
