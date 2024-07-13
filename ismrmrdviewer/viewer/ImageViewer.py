@@ -1,5 +1,5 @@
 import logging
-import numpy
+import numpy as np
 import pdb
 import matplotlib.pyplot as pyplot
 import matplotlib.animation as animation
@@ -9,7 +9,7 @@ from PySide6 import QtCore, QtGui, QtWidgets as QTW
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
-DIMS = ('Instance', 'Channel', 'Slice')
+DIMS = ('Instance', 'Set', 'Phase', 'Channel', 'Slice')
 
 class ImageViewer(QTW.QWidget):
 
@@ -27,7 +27,9 @@ class ImageViewer(QTW.QWidget):
         # Main layout
         layout = QTW.QVBoxLayout(self)
 
-        self.nimg = len(self.container.images)
+        self.nphase = np.max(self.container.images.headers['phase'])+1
+        self.nset = np.max(self.container.images.headers['set'])+1
+        self.nimg = int(len(self.container.images)/self.nphase/self.nset)
 
         # Dimension controls; Add a widget with a horizontal layout
         cw = QTW.QWidget()
@@ -42,7 +44,10 @@ class ImageViewer(QTW.QWidget):
             self.selected[dim] = QTW.QSpinBox()
             controls.addWidget(self.selected[dim])
             self.selected[dim].valueChanged.connect(self.update_image)
+
         self.selected['Instance'].setMaximum(self.nimg - 1)
+        self.selected['Phase'].setMaximum(self.nphase - 1)
+        self.selected['Set'].setMaximum(self.nset - 1)
 
         self.animate = QTW.QCheckBox("Animate:")
         controls.addWidget(self.animate)
@@ -101,8 +106,8 @@ class ImageViewer(QTW.QWidget):
         layout.addWidget(self.label)
 
 
-        
-        self.stack = numpy.flip(numpy.rot90(numpy.array(self.container.images.data), axes=(3,4)), axis=4)
+        self.stack = np.flip(np.rot90(np.array(self.container.images.data), axes=(3,4)), axis=4)
+        self.stack = np.reshape(self.stack, (self.nimg, self.nset, self.nphase, self.stack.shape[1], self.stack.shape[2], self.stack.shape[3], self.stack.shape[4]))
         if self.stack.shape[0] == 1:
             self.animate.setEnabled(False)
 
@@ -113,8 +118,8 @@ class ImageViewer(QTW.QWidget):
         self.max = self.stack.max()
         self.range = self.max - self.min
 
-        v1 = numpy.percentile(self.stack,2)
-        v2 = numpy.percentile(self.stack,98)
+        v1 = np.percentile(self.stack,2)
+        v2 = np.percentile(self.stack,98)
         self.window = (v2-v1)/self.range
         self.level = (v2+v1)/2/self.range
 
@@ -123,8 +128,8 @@ class ImageViewer(QTW.QWidget):
         # For animation
         self.timer = None
 
-        self.selected['Channel'].setMaximum(len(self.stack[0]) - 1)
-        self.selected['Slice'].setMaximum(len(self.stack[0][0]) - 1)
+        self.selected['Channel'].setMaximum(self.stack.shape[3]-1)
+        self.selected['Slice'].setMaximum(self.stack.shape[4]-1)
 
         self.update_image()
 
@@ -145,6 +150,14 @@ class ImageViewer(QTW.QWidget):
     def slice(self):
         "Convenience method"
         return self.selected['Slice'].value()
+    
+    def phase(self):
+        "Convenience method"
+        return self.selected['Phase'].value()
+    
+    def set(self):
+        "Convenience method"
+        return self.selected['Set'].value()
 
     def check_dim(self, v):
         "Disables animation checkbox for signleton dimensions"
@@ -242,7 +255,7 @@ class ImageViewer(QTW.QWidget):
         wl = self.window_level()
         self.ax.clear()
         self.image = \
-            self.ax.imshow(self.stack[self.frame()][self.coil()][self.slice()], 
+            self.ax.imshow(self.stack[self.frame()][self.set()][self.phase()][self.coil()][self.slice()], 
                            vmin=wl[0],
                            vmax=wl[1],
                            cmap=pyplot.get_cmap('gray'))
@@ -254,7 +267,7 @@ class ImageViewer(QTW.QWidget):
 
     def transpose_image(self):
 
-        self.stack = self.stack.swapaxes(3,4)
+        self.stack = self.stack.swapaxes(5,6)
         self.update_image()
 
 
