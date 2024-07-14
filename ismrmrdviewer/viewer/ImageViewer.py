@@ -39,32 +39,44 @@ class ImageViewer(QTW.QWidget):
         controls.setContentsMargins(0,0,0,0)
 
         # Create a drop-down for the image instance
+        self.dim_buttons = {}
         self.selected = {}
-        for dim in DIMS:
-            controls.addWidget(QTW.QLabel("{}:".format(dim)))
+        self.dim_button_grp = QTW.QButtonGroup()
+        self.dim_button_grp.setExclusive(True)
+        for dim_i, dim in enumerate(DIMS):
+            self.dim_buttons[dim] = QTW.QPushButton(text=f'{dim}')
+            self.dim_buttons[dim].setCheckable(True)
+            self.dim_button_grp.addButton(self.dim_buttons[dim], dim_i)
+            controls.addWidget(self.dim_buttons[dim])
             self.selected[dim] = QTW.QSpinBox()
             controls.addWidget(self.selected[dim])
             self.selected[dim].valueChanged.connect(self.update_image)
 
+        self.dim_buttons['Instance'].setChecked(True)
         self.selected['Instance'].setMaximum(self.nimg - 1)
         self.selected['Phase'].setMaximum(self.nphase - 1)
         self.selected['Set'].setMaximum(self.nset - 1)
 
-        self.animate = QTW.QCheckBox("Animate:")
+        self.animate = QTW.QPushButton()
+        self.animate.setCheckable(True)
+        pixmapi = QTW.QStyle.StandardPixmap.SP_MediaPlay
+        icon = self.style().standardIcon(pixmapi)
+        self.animate.setIcon(icon)
         controls.addWidget(self.animate)
 
-        self.animDim = QTW.QComboBox()
-        for dim in DIMS:
-            self.animDim.addItem(dim)
-        controls.addWidget(self.animDim)
+        # self.animDim = QTW.QComboBox()
+        # for dim in DIMS:
+        #     self.animDim.addItem(dim)
+        # controls.addWidget(self.animDim)
         controls.addStretch()
 
         self.transpose = QTW.QPushButton("Transpose")
         controls.addWidget(self.transpose)
 
-        self.animate.stateChanged.connect(self.animation)
+        self.animate.clicked.connect(self.animation)
         self.transpose.pressed.connect(self.transpose_image)
-        self.animDim.currentIndexChanged.connect(self.check_dim)
+        # self.animDim.currentIndexChanged.connect(self.check_dim)
+        self.dim_button_grp.buttonClicked.connect(self.check_dim)
 
         # Window/level controls; Add a widget with a horizontal layout
         # NOTE: we re-use the local names from above...
@@ -118,6 +130,7 @@ class ImageViewer(QTW.QWidget):
 
 
         self.stack = np.flip(np.rot90(np.array(self.container.images.data), axes=(3,4)), axis=4)
+        # TODO: Images may not be sent in this order. We have the headers, use that for reshaping the data. self.container.images.headers[self.frame()]
         self.stack = np.reshape(self.stack, (self.nimg, self.nset, self.nphase, self.stack.shape[1], self.stack.shape[2], self.stack.shape[3], self.stack.shape[4]))
         if self.stack.shape[0] == 1:
             self.animate.setEnabled(False)
@@ -171,8 +184,8 @@ class ImageViewer(QTW.QWidget):
         return self.selected['Set'].value()
 
     def check_dim(self, v):
-        "Disables animation checkbox for signleton dimensions"
-        self.animate.setEnabled(self.stack.shape[v] > 1)
+        "Disables animation checkbox for singleton dimensions"
+        self.animate.setEnabled(self.stack.shape[self.dim_button_grp.checkedId()] > 1)
 
     def update_wl(self):
         """
@@ -306,9 +319,17 @@ class ImageViewer(QTW.QWidget):
             if self.timer:
                 self.timer.stop()
                 self.timer = None
+            
+            pixmapi = QTW.QStyle.StandardPixmap.SP_MediaPlay
+            icon = self.style().standardIcon(pixmapi)
+            self.animate.setIcon(icon)
             return
         
-        dimName = self.animDim.currentText()
+        dimName = self.dim_button_grp.checkedButton().text()
+
+        pixmapi = QTW.QStyle.StandardPixmap.SP_MediaPause
+        icon = self.style().standardIcon(pixmapi)
+        self.animate.setIcon(icon)
 
         if self.selected[dimName].maximum() == 0:
             logging.warn("Cannot animate singleton dimension.")
