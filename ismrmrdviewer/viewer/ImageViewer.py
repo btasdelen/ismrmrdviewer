@@ -220,6 +220,19 @@ class ImageViewer(QTW.QWidget):
         "Reset .mloc to indicate we are done with one click/drag operation"
         self.mloc = None
 
+    def mouseDoubleClickEvent(self, event):
+        v1 = np.percentile(self.stack,2)
+        v2 = np.percentile(self.stack,98)
+        self.window = (v2-v1)/self.range
+        self.level = (v2+v1)/2/self.range
+        self.update_wl()
+
+        for (cont, var) in ((self.windowScaled, self.window),
+                    (self.levelScaled, self.level)):
+            cont.blockSignals(True)
+            cont.setValue(var * self.range)
+            cont.blockSignals(False)
+
     def wheelEvent(self, event):
         "Handle scroll event; could use some time-based limiting."
         control = self.selected['Instance']
