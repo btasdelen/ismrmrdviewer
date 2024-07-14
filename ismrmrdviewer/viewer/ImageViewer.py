@@ -13,6 +13,7 @@ DIMS = ('Instance', 'Set', 'Phase', 'Channel', 'Slice')
 
 class ImageViewer(QTW.QWidget):
 
+    timer_interval = 100 # [ms]
     def __init__(self, container):
         """
         Stores off container for later use; sets up the main panel display
@@ -81,6 +82,16 @@ class ImageViewer(QTW.QWidget):
         controls.addWidget(QTW.QLabel("Level:"))
         controls.addWidget(self.levelScaled)
         controls.addStretch()
+
+        self.frameRate = QTW.QDoubleSpinBox()
+        self.frameRate.setRange(0.001, 1000)
+        self.frameRate.setSuffix(' fps')
+        self.frameRate.setValue(10)
+
+        controls.addWidget(QTW.QLabel("Frame Rate:"))
+        controls.addWidget(self.frameRate)
+
+        self.frameRate.valueChanged.connect(self.set_timer_interval)
 
         self.windowScaled.valueChanged.connect(self.window_input)
         self.levelScaled.valueChanged.connect(self.level_input)
@@ -283,7 +294,8 @@ class ImageViewer(QTW.QWidget):
         self.stack = self.stack.swapaxes(5,6)
         self.update_image()
 
-
+    def set_timer_interval(self, fps):
+        self.timer_interval = 1e3/fps
 
     def animation(self):
         """
@@ -310,7 +322,7 @@ class ImageViewer(QTW.QWidget):
             self.selected[dimName].setValue((v+1) % m)
 
         self.timer = QtCore.QTimer(self)
-        self.timer.interval = 100
+        self.timer.setInterval(self.timer_interval)
         self.timer.timeout.connect(increment)
         self.timer.start()
 
