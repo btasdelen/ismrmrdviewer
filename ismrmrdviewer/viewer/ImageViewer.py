@@ -129,9 +129,15 @@ class ImageViewer(QTW.QWidget):
         layout.addWidget(self.label)
 
 
-        self.stack = np.flip(np.rot90(np.array(self.container.images.data), axes=(3,4)), axis=4)
-        # TODO: Images may not be sent in this order. We have the headers, use that for reshaping the data. self.container.images.headers[self.frame()]
-        self.stack = np.reshape(self.stack, (self.nimg, self.nset, self.nphase, self.stack.shape[1], self.stack.shape[2], self.stack.shape[3], self.stack.shape[4]))
+        data_ = np.flip(np.rot90(np.array(self.container.images.data), axes=(3,4)), axis=4)
+        self.stack = np.zeros((self.nimg, self.nset, self.nphase, data_.shape[1], data_.shape[2], data_.shape[3], data_.shape[4]))
+        # TODO: We don't have to do the weird trick with the nimg if we properly handle all possible axes.
+        for ii in range(int(data_.shape[0]/self.nimg)):
+            for xi in range(self.nimg):
+                pi = self.container.images.headers['phase'][ii*xi+ii]
+                si = self.container.images.headers['set'][ii*xi+ii]
+                self.stack[xi,si,pi,:,:,:,:] = data_[ii*xi+ii,:,:,:,:]
+        # self.stack = np.reshape(self.stack, (self.nimg, self.nset, self.nphase, self.stack.shape[1], self.stack.shape[2], self.stack.shape[3], self.stack.shape[4]))
         if self.stack.shape[0] == 1:
             self.animate.setEnabled(False)
 
