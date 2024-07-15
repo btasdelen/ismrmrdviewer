@@ -265,7 +265,8 @@ class ImageViewer(QTW.QWidget):
 
     def wheelEvent(self, event):
         "Handle scroll event; could use some time-based limiting."
-        control = self.selected['Instance']
+        dimName = self.dim_button_grp.checkedButton().text()
+        control = self.selected[dimName]
 
         num_pixels = event.pixelDelta()
         num_degrees = event.angleDelta() / 8
@@ -281,7 +282,7 @@ class ImageViewer(QTW.QWidget):
             new_v = control.value() + 1
         else:
             return
-        control.setValue(max(min(new_v,self.stack.shape[0]-1),0))
+        control.setValue(max(min(new_v,self.stack.shape[self.dim_button_grp.checkedId()]-1),0))
 
     def window_level(self):
         "Perform calculations of (min,max) display range from window/level"
@@ -305,8 +306,8 @@ class ImageViewer(QTW.QWidget):
         self.ax.set_xticks([])
         self.ax.set_yticks([])
         self.canvas.draw()
-        idx = self.container.images.headers[self.frame()]
-        self.label.setText(self.label_base.format(int(idx['average']),int(idx['slice']),int(idx['contrast']),int(idx['phase']),int(idx['repetition']),int(idx['set'])))
+        idx = self.container.images.headers[self.frame()*self.set()*self.phase()+self.set()*self.phase()+self.phase()]
+        self.label.setText(self.label_base.format(int(idx['average']),int(idx['slice']),int(idx['contrast']),self.phase(),int(idx['repetition']), self.set()))
 
     def transpose_image(self):
 
