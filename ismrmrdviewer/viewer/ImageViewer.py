@@ -9,7 +9,7 @@ from PySide6 import QtCore, QtGui, QtWidgets as QTW
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
-DIMS = ('Instance', 'Set', 'Phase', 'Channel', 'Slice')
+DIMS = ('Instance', 'Repetition', 'Set', 'Phase', 'Channel', 'Slice')
 
 class ImageViewer(QTW.QWidget):
 
@@ -30,7 +30,8 @@ class ImageViewer(QTW.QWidget):
 
         self.nphase = np.max(self.container.images.headers['phase'])+1
         self.nset = np.max(self.container.images.headers['set'])+1
-        self.nimg = int(len(self.container.images)/self.nphase/self.nset)
+        self.nrep = np.max(self.container.images.headers['repetition'])+1
+        self.nimg = int(len(self.container.images)/self.nphase/self.nset/self.nrep) # TODO: Remove this, as it is broken and unnecessary if we handle everything right.
 
         # Dimension controls; Add a widget with a horizontal layout
         cw = QTW.QWidget()
@@ -56,6 +57,7 @@ class ImageViewer(QTW.QWidget):
         self.selected['Instance'].setMaximum(self.nimg - 1)
         self.selected['Phase'].setMaximum(self.nphase - 1)
         self.selected['Set'].setMaximum(self.nset - 1)
+        self.selected['Repetition'].setMaximum(self.nrep - 1)
 
         self.animate = QTW.QPushButton()
         self.animate.setCheckable(True)
@@ -130,13 +132,15 @@ class ImageViewer(QTW.QWidget):
 
 
         data_ = np.flip(np.rot90(np.array(self.container.images.data), axes=(3,4)), axis=4)
-        self.stack = np.zeros((self.nimg, self.nset, self.nphase, data_.shape[1], data_.shape[2], data_.shape[3], data_.shape[4]))
+        self.stack = np.zeros((self.nimg, self.nrep, self.nset, self.nphase, data_.shape[1], data_.shape[2], data_.shape[3], data_.shape[4]))
         # TODO: We don't have to do the weird trick with the nimg if we properly handle all possible axes.
+        # TODO: This indexing does not work properly. Need a better way for handling "unspecified" frames in the header.
         for ii in range(int(data_.shape[0]/self.nimg)):
             for xi in range(self.nimg):
                 pi = self.container.images.headers['phase'][ii*xi+ii]
                 si = self.container.images.headers['set'][ii*xi+ii]
-                self.stack[xi,si,pi,:,:,:,:] = data_[ii*xi+ii,:,:,:,:]
+                ri = self.container.images.headers['repetition'][ii*xi+ii]
+                self.stack[xi,ri,si,pi,:,:,:,:] = data_[ii*xi+ii,:,:,:,:]
         # self.stack = np.reshape(self.stack, (self.nimg, self.nset, self.nphase, self.stack.shape[1], self.stack.shape[2], self.stack.shape[3], self.stack.shape[4]))
         if self.stack.shape[0] == 1:
             self.animate.setEnabled(False)
@@ -188,6 +192,9 @@ class ImageViewer(QTW.QWidget):
     def set(self):
         "Convenience method"
         return self.selected['Set'].value()
+    
+    def repetition(self):
+        return self.selected['Repetition'].value()
 
     def check_dim(self, v):
         "Disables animation checkbox for singleton dimensions"
@@ -299,14 +306,16 @@ class ImageViewer(QTW.QWidget):
         wl = self.window_level()
         self.ax.clear()
         self.image = \
-            self.ax.imshow(self.stack[self.frame()][self.set()][self.phase()][self.coil()][self.slice()], 
+            self.ax.imshow(self.stack[self.frame()][self.repetition()][self.set()][self.phase()][self.coil()][self.slice()], 
                            vmin=wl[0],
                            vmax=wl[1],
                            cmap=pyplot.get_cmap('gray'))
         self.ax.set_xticks([])
         self.ax.set_yticks([])
         self.canvas.draw()
-        idx = self.container.images.headers[self.frame()*self.set()*self.phase()+self.set()*self.phase()+self.phase()]
+        # TODO: Now, this does not make any sense. We could either save the mapping from multidimensional array to linear array we originally started, or look for the idx satifying
+        # the header idxs from the headers.
+        idx = self.container.images.headers[self.frame()*self.repetition()*self.set()*self.phase()+ self.repetition()*self.set()*self.phase() + self.set()*self.phase()+self.phase()] 
         self.label.setText(self.label_base.format(int(idx['average']),int(idx['slice']),int(idx['contrast']),self.phase(),int(idx['repetition']), self.set()))
 
     def transpose_image(self):
