@@ -72,11 +72,7 @@ class ImageViewer(QTW.QWidget):
         # controls.addWidget(self.animDim)
         controls.addStretch()
 
-        self.transpose = QTW.QPushButton("Transpose")
-        controls.addWidget(self.transpose)
-
         self.animate.clicked.connect(self.animation)
-        self.transpose.pressed.connect(self.transpose_image)
         # self.animDim.currentIndexChanged.connect(self.check_dim)
         self.dim_button_grp.buttonClicked.connect(self.check_dim)
 
@@ -115,7 +111,7 @@ class ImageViewer(QTW.QWidget):
                           dpi=72,
                           facecolor=(1,1,1),
                           edgecolor=(0,0,0),
-                          tight_layout=True)
+                          layout='constrained')
 
         self.ax = self.fig.add_subplot(111)
         self.canvas = FigureCanvas(self.fig)
@@ -291,6 +287,23 @@ class ImageViewer(QTW.QWidget):
             return
         control.setValue(max(min(new_v,self.stack.shape[self.dim_button_grp.checkedId()]-1),0))
 
+    def contextMenuEvent(self, event):
+    
+        menu = QTW.QMenu(self)
+        saveAction = menu.addAction("Save Frame")
+        transposeAction = menu.addAction("Transpose")
+
+        action = menu.exec(self.mapToGlobal(event.pos()))
+
+        if action == saveAction:
+            savefilepath = QTW.QFileDialog.getSaveFileName(self, "Save image as...", filter="Images (*.png, *.jpg, *.svg, *.eps, *.pdf)")
+            print(savefilepath)
+            if len(savefilepath[0]) != 0:
+                extent = self.ax.get_window_extent().transformed(self.fig.dpi_scale_trans.inverted())
+                self.fig.savefig(savefilepath[0], bbox_inches=extent)
+        elif action == transposeAction:
+            self.transpose_image()
+
     def window_level(self):
         "Perform calculations of (min,max) display range from window/level"
         return (self.level * self.range 
@@ -320,7 +333,7 @@ class ImageViewer(QTW.QWidget):
 
     def transpose_image(self):
 
-        self.stack = self.stack.swapaxes(5,6)
+        self.stack = self.stack.swapaxes(-2,-1)
         self.update_image()
 
     def set_timer_interval(self, fps):
