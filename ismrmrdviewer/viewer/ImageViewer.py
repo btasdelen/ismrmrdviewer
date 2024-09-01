@@ -1,5 +1,6 @@
 import logging
 import numpy as np
+import scipy.io as spio
 import pdb
 import matplotlib.pyplot as pyplot
 import matplotlib.animation as animation
@@ -296,11 +297,18 @@ class ImageViewer(QTW.QWidget):
         action = menu.exec(self.mapToGlobal(event.pos()))
 
         if action == saveAction:
-            savefilepath = QTW.QFileDialog.getSaveFileName(self, "Save image as...", filter="Images (*.png, *.jpg, *.svg, *.eps, *.pdf)")
+            savefilepath = QTW.QFileDialog.getSaveFileName(self, "Save image as...", filter="Images (*.png, *.jpg, *.svg, *.eps, *.pdf);;MAT file (*.mat);;NPY file (*.npy)")
             print(savefilepath)
+            sel_filter = savefilepath[1]
             if len(savefilepath[0]) != 0:
-                extent = self.ax.get_window_extent().transformed(self.fig.dpi_scale_trans.inverted())
-                self.fig.savefig(savefilepath[0], bbox_inches=extent)
+                if sel_filter == "Images (*.png, *.jpg, *.svg, *.eps, *.pdf)":
+                    extent = self.ax.get_window_extent().transformed(self.fig.dpi_scale_trans.inverted())
+                    self.fig.savefig(savefilepath[0], bbox_inches=extent)
+                elif sel_filter == "MAT file (*.mat)":
+                    spio.savemat(savefilepath[0], {'data': self.stack[self.frame()][self.repetition()][self.set()][self.phase()][self.coil()][self.slice()]})
+                elif sel_filter == "NPY file (*.npy)":
+                    np.save(savefilepath[0], self.stack[self.frame()][self.repetition()][self.set()][self.phase()][self.coil()][self.slice()])
+                    
         elif action == transposeAction:
             self.transpose_image()
 

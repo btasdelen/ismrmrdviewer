@@ -19,6 +19,7 @@ setup(
         'pyparsing',
         'PySide6',
         'python-dateutil',
-        'six'
+        'six',
+        'scipy'
     ]
 )
