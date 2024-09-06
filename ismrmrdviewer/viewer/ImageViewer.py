@@ -128,8 +128,11 @@ class ImageViewer(QTW.QWidget):
         layout.addWidget(self.label)
 
 
-        data_ = np.flip(np.rot90(np.array(self.container.images.data), axes=(3,4)), axis=4)
-        self.stack = np.zeros((self.nimg, self.nrep, self.nset, self.nphase, data_.shape[1], data_.shape[2], data_.shape[3], data_.shape[4]))
+        data_ = np.flip(np.rot90(container.images.data, axes=(3,4)), axis=4)
+        self.stack = np.zeros(
+            (self.nimg, self.nrep, self.nset, self.nphase, data_.shape[1], data_.shape[2], data_.shape[3], data_.shape[4]), 
+            dtype=data_.dtype
+            )
         # TODO: We don't have to do the weird trick with the nimg if we properly handle all possible axes.
         # TODO: This indexing does not work properly. Need a better way for handling "unspecified" frames in the header.
         for ii in range(int(data_.shape[0]/self.nimg)):
