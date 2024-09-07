@@ -1,9 +1,9 @@
 import logging
 import numpy as np
 import scipy.io as spio
-import pdb
-import matplotlib.pyplot as pyplot
-import matplotlib.animation as animation
+import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('QtAgg')
 
 from PySide6 import QtCore, QtGui, QtWidgets as QTW
 
@@ -73,7 +73,7 @@ class ImageViewer(QTW.QWidget):
         # controls.addWidget(self.animDim)
         controls.addStretch()
 
-        self.animate.clicked.connect(self.animation)
+        self.animate.clicked.connect(self.animate_frames)
         # self.animDim.currentIndexChanged.connect(self.check_dim)
         self.dim_button_grp.buttonClicked.connect(self.check_dim)
 
@@ -296,6 +296,7 @@ class ImageViewer(QTW.QWidget):
         menu = QTW.QMenu(self)
         saveAction = menu.addAction("Save Frame")
         transposeAction = menu.addAction("Transpose")
+        plotFrameAction = menu.addAction("Plot Frame")
 
         action = menu.exec(self.mapToGlobal(event.pos()))
 
@@ -315,6 +316,19 @@ class ImageViewer(QTW.QWidget):
         elif action == transposeAction:
             self.transpose_image()
 
+        elif action == plotFrameAction:
+            wl = self.window_level()
+            plt.figure()
+            plt.imshow(self.stack[self.frame()][self.repetition()][self.set()][self.phase()][self.coil()][self.slice()], 
+                           vmin=wl[0],
+                           vmax=wl[1],
+                           cmap=plt.get_cmap('gray'))
+            plt.axis('off')
+            plt.title(f'Frame REP{self.repetition()}/SET{self.set()}/PHS{self.phase()}/SLC{self.slice()}/CH{self.coil()}')
+            # self.canvas.draw()
+            plt.draw()
+            plt.show(block=False)
+
     def window_level(self):
         "Perform calculations of (min,max) display range from window/level"
         return (self.level * self.range 
@@ -333,7 +347,7 @@ class ImageViewer(QTW.QWidget):
             self.ax.imshow(self.stack[self.frame()][self.repetition()][self.set()][self.phase()][self.coil()][self.slice()], 
                            vmin=wl[0],
                            vmax=wl[1],
-                           cmap=pyplot.get_cmap('gray'))
+                           cmap=plt.get_cmap('gray'))
         self.ax.set_xticks([])
         self.ax.set_yticks([])
         self.canvas.draw()
@@ -350,7 +364,7 @@ class ImageViewer(QTW.QWidget):
     def set_timer_interval(self, fps):
         self.timer_interval = 1e3/fps
 
-    def animation(self):
+    def animate_frames(self):
         """
         Animation is achieved via a timer that drives the selected animDim
         dimensions' spinbox.
