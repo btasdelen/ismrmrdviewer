@@ -9,6 +9,7 @@ from PySide6 import QtCore, QtGui, QtWidgets as QTW
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
+from functools import cache
 
 DIMS = ('Instance', 'Repetition', 'Set', 'Phase', 'Channel', 'Slice')
 
@@ -129,31 +130,33 @@ class ImageViewer(QTW.QWidget):
 
 
         data_ = np.flip(np.rot90(container.images.data, axes=(3,4)), axis=4)
-        self.stack = np.zeros(
-            (self.nimg, self.nrep, self.nset, self.nphase, data_.shape[1], data_.shape[2], data_.shape[3], data_.shape[4]), 
-            dtype=data_.dtype
-            )
+        # self.stack = np.zeros(
+        #     (self.nimg, self.nrep, self.nset, self.nphase, data_.shape[1], data_.shape[2], data_.shape[3], data_.shape[4]), 
+        #     dtype=data_.dtype
+        #     )
+        self.data_ = data_
         # TODO: We don't have to do the weird trick with the nimg if we properly handle all possible axes.
         # TODO: This indexing does not work properly. Need a better way for handling "unspecified" frames in the header.
-        for ii in range(int(data_.shape[0]/self.nimg)):
-            for xi in range(self.nimg):
-                pi = self.container.images.headers['phase'][ii*xi+ii]
-                si = self.container.images.headers['set'][ii*xi+ii]
-                ri = self.container.images.headers['repetition'][ii*xi+ii]
-                self.stack[xi,ri,si,pi,:,:,:,:] = data_[ii*xi+ii,:,:,:,:]
+        # for ii in range(int(data_.shape[0]/self.nimg)):
+        #     for xi in range(self.nimg):
+        #         pi = self.container.images.headers['phase'][ii*xi+ii]
+        #         si = self.container.images.headers['set'][ii*xi+ii]
+        #         ri = self.container.images.headers['repetition'][ii*xi+ii]
+        #         self.stack[xi,ri,si,pi,:,:,:,:] = data_[ii*xi+ii,:,:,:,:]
         # self.stack = np.reshape(self.stack, (self.nimg, self.nset, self.nphase, self.stack.shape[1], self.stack.shape[2], self.stack.shape[3], self.stack.shape[4]))
-        if self.stack.shape[0] == 1:
+        if self.nimg == 1:
             self.animate.setEnabled(False)
 
-        logging.info("Container size {}".format(str(self.stack.shape)))
+        # logging.info("Container size {}".format(str(self.stack.shape)))
+        logging.info("Container size {}".format(str(self.image_shape())))
 
         # Window/Level support
-        self.min = self.stack.min()
-        self.max = self.stack.max()
+        self.min = self.current_frame().min()
+        self.max = self.current_frame().max()
         self.range = self.max - self.min
 
-        v1 = np.percentile(self.stack,2)
-        v2 = np.percentile(self.stack,98)
+        v1 = np.percentile(self.current_frame(),2)
+        v2 = np.percentile(self.current_frame(),98)
         self.window = (v2-v1)/self.range
         self.level = (v2+v1)/2/self.range
 
@@ -162,8 +165,8 @@ class ImageViewer(QTW.QWidget):
         # For animation
         self.timer = None
 
-        self.selected['Channel'].setMaximum(self.stack.shape[3]-1)
-        self.selected['Slice'].setMaximum(self.stack.shape[4]-1)
+        self.selected['Channel'].setMaximum(self.fetch_image(self.repetition(), self.set(), self.phase()).shape[1]-1)
+        self.selected['Slice'].setMaximum(self.fetch_image(self.repetition(), self.set(), self.phase()).shape[2]-1)
 
         self.update_image()
 
@@ -196,9 +199,18 @@ class ImageViewer(QTW.QWidget):
     def repetition(self):
         return self.selected['Repetition'].value()
 
+    def image_shape(self):
+        return (self.nimg, self.nrep, self.nset, self.nphase, 
+                self.fetch_image(self.repetition(), self.set(), self.phase()).shape[1],
+                self.fetch_image(self.repetition(), self.set(), self.phase()).shape[2],
+                self.fetch_image(self.repetition(), self.set(), self.phase()).shape[3], 
+                self.fetch_image(self.repetition(), self.set(), self.phase()).shape[4])
+    
     def check_dim(self, v):
         "Disables animation checkbox for singleton dimensions"
-        self.animate.setEnabled(self.stack.shape[self.dim_button_grp.checkedId()] > 1)
+        checkedId = self.dim_button_grp.checkedId()
+        # self.animate.setEnabled(self.stack.shape[checkedId] > 1)
+        self.animate.setEnabled(bool(self.image_shape()[checkedId] > 1))
 
     def update_wl(self):
         """
@@ -258,8 +270,8 @@ class ImageViewer(QTW.QWidget):
         self.mloc = None
 
     def mouseDoubleClickEvent(self, event):
-        v1 = np.percentile(self.stack,2)
-        v2 = np.percentile(self.stack,98)
+        v1 = np.percentile(self.current_frame(),2)
+        v2 = np.percentile(self.current_frame(),98)
         self.window = (v2-v1)/self.range
         self.level = (v2+v1)/2/self.range
         self.update_wl()
@@ -289,7 +301,8 @@ class ImageViewer(QTW.QWidget):
             new_v = control.value() + 1
         else:
             return
-        control.setValue(max(min(new_v,self.stack.shape[self.dim_button_grp.checkedId()]-1),0))
+        control.setValue(max(min(new_v,self.image_shape()[self.dim_button_grp.checkedId()]-1),0))
+        # control.setValue(max(min(new_v,self.stack.shape[self.dim_button_grp.checkedId()]-1),0))
 
     def contextMenuEvent(self, event):
     
@@ -309,9 +322,9 @@ class ImageViewer(QTW.QWidget):
                     extent = self.ax.get_window_extent().transformed(self.fig.dpi_scale_trans.inverted())
                     self.fig.savefig(savefilepath[0], bbox_inches=extent)
                 elif sel_filter == "MAT file (*.mat)":
-                    spio.savemat(savefilepath[0], {'data': self.stack[self.frame()][self.repetition()][self.set()][self.phase()][self.coil()][self.slice()]})
+                    spio.savemat(savefilepath[0], {'data': self.fetch_image(self.repetition(), self.set(), self.phase())[self.frame()][self.coil()][self.slice()]})
                 elif sel_filter == "NPY file (*.npy)":
-                    np.save(savefilepath[0], self.stack[self.frame()][self.repetition()][self.set()][self.phase()][self.coil()][self.slice()])
+                    np.save(savefilepath[0], self.fetch_image(self.repetition(), self.set(), self.phase())[self.frame()][self.coil()][self.slice()])
                     
         elif action == transposeAction:
             self.transpose_image()
@@ -319,7 +332,7 @@ class ImageViewer(QTW.QWidget):
         elif action == plotFrameAction:
             wl = self.window_level()
             plt.figure()
-            plt.imshow(self.stack[self.frame()][self.repetition()][self.set()][self.phase()][self.coil()][self.slice()], 
+            plt.imshow(self.current_frame(), 
                            vmin=wl[0],
                            vmax=wl[1],
                            cmap=plt.get_cmap('gray'))
@@ -335,6 +348,16 @@ class ImageViewer(QTW.QWidget):
                   - self.window / 2 * self.range + self.min, 
                 self.level * self.range
                   + self.window / 2 * self.range + self.min)
+    @cache
+    def fetch_image(self, repetition, set, phase):
+        "Fetches the image data for the given indicies"
+
+        idx_ = (self.container.images.headers['phase'] == phase) & (self.container.images.headers['set'] == set) & (self.container.images.headers['repetition'] == repetition)
+        return self.data_[idx_,:,:,:,:]
+        # return None
+
+    def current_frame(self):
+        return self.fetch_image(self.repetition(), self.set(), self.phase())[self.frame()][self.coil()][self.slice()]
     
     def update_image(self, slice_n=None):
         """
@@ -344,10 +367,15 @@ class ImageViewer(QTW.QWidget):
         wl = self.window_level()
         self.ax.clear()
         self.image = \
-            self.ax.imshow(self.stack[self.frame()][self.repetition()][self.set()][self.phase()][self.coil()][self.slice()], 
-                           vmin=wl[0],
-                           vmax=wl[1],
-                           cmap=plt.get_cmap('gray'))
+            self.ax.imshow(self.fetch_image(self.repetition(), self.set(), self.phase())[self.frame()][self.coil()][self.slice()], 
+                            vmin=wl[0],
+                            vmax=wl[1],
+                            cmap=plt.get_cmap('gray'))
+            # self.ax.imshow(self.stack[self.frame()][self.repetition()][self.set()][self.phase()][self.coil()][self.slice()], 
+            #                vmin=wl[0],
+            #                vmax=wl[1],
+            #                cmap=plt.get_cmap('gray'))
+
         self.ax.set_xticks([])
         self.ax.set_yticks([])
         self.canvas.draw()
@@ -357,8 +385,8 @@ class ImageViewer(QTW.QWidget):
         self.label.setText(self.label_base.format(int(idx['average']),int(idx['slice']),int(idx['contrast']),self.phase(),int(idx['repetition']), self.set()))
 
     def transpose_image(self):
-
-        self.stack = self.stack.swapaxes(-2,-1)
+        # TODO
+        # self.stack = self.stack.swapaxes(-2,-1)
         self.update_image()
 
     def set_timer_interval(self, fps):
