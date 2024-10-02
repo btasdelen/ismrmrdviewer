@@ -10,6 +10,7 @@ from PySide6 import QtCore, QtGui, QtWidgets as QTW
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from functools import cache
+import ismrmrd
 
 DIMS = ('Instance', 'Repetition', 'Set', 'Phase', 'Channel', 'Slice')
 
@@ -310,6 +311,7 @@ class ImageViewer(QTW.QWidget):
         saveAction = menu.addAction("Save Frame")
         transposeAction = menu.addAction("Transpose")
         plotFrameAction = menu.addAction("Plot Frame")
+        showMetaAction = menu.addAction("Show Image Meta Data")
 
         action = menu.exec(self.mapToGlobal(event.pos()))
 
@@ -341,6 +343,47 @@ class ImageViewer(QTW.QWidget):
             # self.canvas.draw()
             plt.draw()
             plt.show(block=False)
+        elif action == showMetaAction:
+            idx_ = np.nonzero((self.container.images.headers['phase'] == self.phase()) & (self.container.images.headers['set'] == self.set()) & (self.container.images.headers['repetition'] == self.repetition()))[0][0]
+            meta = ismrmrd.Meta.deserialize(self.container.images.attributes[idx_])
+            def fill_item(item, value):
+                item.setExpanded(True)
+                if type(value) is dict:
+                    for key, val in sorted(value.items()):
+                        child = QTW.QTreeWidgetItem()
+                        child.setText(0, str(key))
+                        item.addChild(child)
+                        fill_item(child, val)
+                elif type(value) is list:
+                    for val in value:
+                        child = QTW.QTreeWidgetItem()
+                        item.addChild(child)
+                        if type(val) is dict:      
+                            child.setText(0, '[dict]')
+                            fill_item(child, val)
+                        elif type(val) is list:
+                            child.setText(0, '[list]')
+                            fill_item(child, val)
+                        else:
+                            child.setText(0, str(val))              
+                        child.setExpanded(True)
+                else:
+                    child = QTW.QTreeWidgetItem()
+                    child.setText(0, str(value))
+                    item.addChild(child)
+
+            def fill_widget(widget, value):
+                widget.clear()
+                fill_item(widget.invisibleRootItem(), value)
+
+            
+            popup = QTW.QDialog(self)
+            popup.setWindowTitle(f'Meatadata of frame REP{self.repetition()}/SET{self.set()}/PHS{self.phase()}/SLC{self.slice()}/CH{self.coil()}')
+            popup.setLayout(QTW.QVBoxLayout())
+            widget = QTW.QTreeWidget()
+            popup.layout().addWidget(widget)
+            fill_widget(widget, dict(meta))
+            popup.exec()
 
     def window_level(self):
         "Perform calculations of (min,max) display range from window/level"

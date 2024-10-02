@@ -14,7 +14,7 @@ class FileWidget(QtWidgets.QSplitter):
 
         self.tree = QtWidgets.QTreeWidget(self)
         self.tree.setHeaderHidden(True)
-        self.tree.itemClicked.connect(lambda widget, _: self.set_viewer(widget.container, widget.viewer))
+        self.tree.itemClicked.connect(lambda widget, _: self.set_viewer(widget.container, widget.viewer) if hasattr(widget, 'viewer') else None)
 
         FileWidget.__populate_tree(self.tree, ismrmrd.File(file_name, mode='r'))
 
