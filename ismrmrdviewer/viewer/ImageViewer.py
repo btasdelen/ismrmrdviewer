@@ -67,6 +67,7 @@ class ImageViewer(QTW.QWidget):
         self.selected['Slice'].setMaximum(self.nslice - 1)
         self.selected['Contrast'].setMaximum(self.ncontrast - 1)
         # TODO: We can disable widgets for singleton dimensions
+        # TODO: Add buttons for flipping and rotating the image
 
         self.animate = QTW.QPushButton()
         self.animate.setCheckable(True)
@@ -135,12 +136,13 @@ class ImageViewer(QTW.QWidget):
 
         layout.addWidget(self.label)
 
-
-        data_ = np.flip(np.rot90(container.images.data, axes=(3,4)), axis=4)
-        # self.stack = np.zeros(
-        #     (self.nimg, self.nrep, self.nset, self.nphase, data_.shape[1], data_.shape[2], data_.shape[3], data_.shape[4]), 
-        #     dtype=data_.dtype
-        #     )
+        try:
+            # TODO: This is ugly.
+            container.images.data.dtype['imag'] # Test if complex
+            data_ = np.flip(np.rot90(np.abs(container.images.data[:,:,:,:,:]['real'] + 1j*container.images.data[:,:,:,:,:]['imag']), axes=(3,4)), axis=4)
+        except KeyError as e:
+            data_ = np.flip(np.rot90(container.images.data, axes=(3,4)), axis=4)
+       
         self.data_ = data_
         # TODO: This indexing does not work properly. Need a better way for handling "unspecified" frames in the header.
 
