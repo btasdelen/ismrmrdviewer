@@ -5,10 +5,12 @@ import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('QtAgg')
 
-from PySide6 import QtCore, QtGui, QtWidgets as QTW
+from PySide6 import QtCore, QtWidgets as QTW
+from PySide6.QtGui import QIcon
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
+from matplotlib import animation
 from functools import cache
 import ismrmrd
 
@@ -17,7 +19,7 @@ DIMS = ('Instance', 'Repetition', 'Set', 'Phase', 'Channel', 'Slice', 'Contrast'
 class ImageViewer(QTW.QWidget):
 
     timer_interval = 100 # [ms]
-    def __init__(self, container):
+    def __init__(self, container: ismrmrd.file.Container):
         """
         Stores off container for later use; sets up the main panel display
         canvas for plotting into with matplotlib. Also prepares the interface
@@ -31,11 +33,11 @@ class ImageViewer(QTW.QWidget):
         # Main layout
         layout = QTW.QVBoxLayout(self)
 
-        self.nphase = np.max(self.container.images.headers['phase'])+1
-        self.nset = np.max(self.container.images.headers['set'])+1
-        self.nrep = np.max(self.container.images.headers['repetition'])+1
-        self.nslice = np.max(self.container.images.headers['slice'])+1
-        self.ncontrast = np.max(self.container.images.headers['contrast'])+1
+        self.nphase = int(np.max(self.container.images.headers['phase'])+1)
+        self.nset = int(np.max(self.container.images.headers['set'])+1)
+        self.nrep = int(np.max(self.container.images.headers['repetition'])+1)
+        self.nslice = int(np.max(self.container.images.headers['slice'])+1)
+        self.ncontrast = int(np.max(self.container.images.headers['contrast'])+1)
 
         self.nimg = int(len(self.container.images)/self.nphase/self.nset/self.nrep/self.nslice/self.ncontrast) # TODO: Remove this, as it is broken and unnecessary if we handle everything right.
 
@@ -67,7 +69,6 @@ class ImageViewer(QTW.QWidget):
         self.selected['Slice'].setMaximum(self.nslice - 1)
         self.selected['Contrast'].setMaximum(self.ncontrast - 1)
         # TODO: We can disable widgets for singleton dimensions
-        # TODO: Add buttons for flipping and rotating the image
 
         self.animate = QTW.QPushButton()
         self.animate.setCheckable(True)
@@ -101,6 +102,41 @@ class ImageViewer(QTW.QWidget):
         controls.addWidget(self.windowScaled)
         controls.addWidget(QTW.QLabel("Level:"))
         controls.addWidget(self.levelScaled)
+
+        # Image rotation/flip controls
+        # TODO: What if we don't have these icons on the system? Need local fallback icons. Maybe from arrShow project?
+        icon_rot_ccw = QIcon.fromTheme("object-rotate-left")
+        icon_rot_cw = QIcon.fromTheme("object-rotate-right")
+        icon_flip_h = QIcon.fromTheme("object-flip-horizontal")
+        icon_flip_v = QIcon.fromTheme("object-flip-vertical")
+
+        self.rot_cw_button = QTW.QPushButton()
+        self.rot_cw_button.setIcon(icon_rot_cw)
+        self.rot_cw_button.setToolTip("Rotate clockwise")
+        self.rot_ccw_button = QTW.QPushButton()
+        self.rot_ccw_button.setIcon(icon_rot_ccw)
+        self.rot_ccw_button.setToolTip("Rotate counter-clockwise")
+        self.flip_h_button = QTW.QPushButton()
+        self.flip_h_button.setIcon(icon_flip_h)
+        self.flip_h_button.setToolTip("Flip horizontally")
+        self.flip_v_button = QTW.QPushButton()
+        self.flip_v_button.setIcon(icon_flip_v)
+        self.flip_v_button.setToolTip("Flip vertically")
+
+        self.nrot_ = 0
+        self.fliph_ = False
+        self.flipv_ = False
+
+        self.rot_cw_button.clicked.connect(self.rotate_cw)
+        self.rot_ccw_button.clicked.connect(self.rotate_ccw)
+        self.flip_h_button.clicked.connect(self.flip_h)
+        self.flip_v_button.clicked.connect(self.flip_v)
+
+        controls.addWidget(self.rot_cw_button)
+        controls.addWidget(self.rot_ccw_button)
+        controls.addWidget(self.flip_h_button)
+        controls.addWidget(self.flip_v_button)
+
         controls.addStretch()
 
         self.frameRate = QTW.QDoubleSpinBox()
@@ -237,6 +273,24 @@ class ImageViewer(QTW.QWidget):
         self.level = value / self.range 
         self.update_wl()
 
+    def rotate_cw(self):
+        self.nrot_ += 1
+        self.nrot_ = self.nrot_ % 4
+        self.update_image()
+    
+    def rotate_ccw(self):
+        self.nrot_ -= 1
+        self.nrot_ = self.nrot_ % 4
+        self.update_image()
+
+    def flip_h(self):
+        self.fliph_ = not self.fliph_
+        self.update_image()
+
+    def flip_v(self):
+        self.flipv_ = not self.flipv_
+        self.update_image()
+
     def mouseMoveEvent(self, event):
         "Provides window/level mouse-drag behavior."
         newx = event.position().x()
@@ -314,7 +368,7 @@ class ImageViewer(QTW.QWidget):
     
         menu = QTW.QMenu(self)
         saveAction = menu.addAction("Save Frame")
-        transposeAction = menu.addAction("Transpose")
+        saveMovieAction = menu.addAction("Save Movie")
         plotFrameAction = menu.addAction("Plot Frame")
         showMetaAction = menu.addAction("Show Image Meta Data")
 
@@ -333,8 +387,8 @@ class ImageViewer(QTW.QWidget):
                 elif sel_filter == "NPY file (*.npy)":
                     np.save(savefilepath[0], self.fetch_image(self.repetition(), self.set(), self.phase(), self.slice(), self.contrast())[self.frame()][self.coil()][0])
                     
-        elif action == transposeAction:
-            self.transpose_image()
+        elif action == saveMovieAction:
+            self.save_movie()
 
         elif action == plotFrameAction:
             wl = self.window_level()
@@ -409,7 +463,52 @@ class ImageViewer(QTW.QWidget):
         # return None
 
     def current_frame(self):
-        return self.fetch_image(self.repetition(), self.set(), self.phase(), self.slice(), self.contrast())[self.frame()][self.coil()][0]
+        im_ = self.fetch_image(self.repetition(), self.set(), self.phase(), self.slice(), self.contrast())[self.frame()][self.coil()][0]
+        if self.fliph_:
+            im_ = np.flip(im_, axis=1)
+        if self.flipv_:
+            im_ = np.flip(im_, axis=0)
+        im_ = np.rot90(im_, k=self.nrot_, axes=(0,1))
+        return im_
+    
+    def save_movie(self):
+        mid_ = self.container.images.headers[0]['measurement_uid']
+        dset_name = self.container.images.headers.parent.parent.name # Hacky
+        dim_name = self.dim_button_grp.checkedButton().text()
+        framerate = self.frameRate.value()
+        movie_filename = f"movie_MID{mid_}_{dset_name}_{dim_name}_{framerate}fps.mp4"
+        movie_filename = movie_filename.replace(" ", "_").replace(":", "_").replace("/", "")
+
+        logging.info(f"Saving the movie from dimension {dim_name} with frame rate {framerate} fps as the filename {movie_filename}")
+
+        fig = plt.figure(frameon=False)
+        w,h = self.current_frame().shape[0:2]
+        dpi = 96
+        w /= dpi
+        h /= dpi
+        fig.set_dpi(dpi)
+        fig.set_size_inches(w,h)
+        ax = plt.Axes(fig, [0., 0., 1., 1.])
+        ax.set_axis_off()
+        fig.add_axes(ax)
+        im_ax = []
+        dim_idxs = [self.repetition(), self.set(), self.phase(), self.slice(), self.contrast()]
+        Nframes = self.selected[dim_name].maximum()
+        for ii in range(Nframes):
+            dim_idxs[self.dim_button_grp.checkedId()-1] = ii
+            im_ = self.fetch_image(*dim_idxs)[self.frame()][self.coil()][0]
+            if self.fliph_:
+                im_ = np.flip(im_, axis=1)
+            if self.flipv_:
+                im_ = np.flip(im_, axis=0)
+            im_ = np.rot90(im_, k=self.nrot_, axes=(0,1))
+            ima_ = ax.imshow(im_, cmap='gray', animated=True, vmin=self.window_level()[0], vmax=self.window_level()[1], aspect='equal')
+            im_ax.append([ima_])
+
+        ani = animation.ArtistAnimation(fig, im_ax, interval=1e3/framerate, blit=True)
+        MWriter = animation.FFMpegWriter(fps=framerate)
+        ani.save(movie_filename, writer=MWriter)
+        logging.info(f"Movie saved as {movie_filename}")
     
     def update_image(self, slice_n=None):
         """
@@ -419,7 +518,7 @@ class ImageViewer(QTW.QWidget):
         wl = self.window_level()
         self.ax.clear()
         self.image = \
-            self.ax.imshow(self.fetch_image(self.repetition(), self.set(), self.phase(), self.slice(), self.contrast())[self.frame()][self.coil()][0], 
+            self.ax.imshow(self.current_frame(), 
                             vmin=wl[0],
                             vmax=wl[1],
                             cmap=plt.get_cmap('gray'))

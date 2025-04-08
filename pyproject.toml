@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ismrmrdviewer"
+version = "0.3.0"
+description = "Simple tool for viewing ISMRMRD data."
+authors = [{ name = "Kristoffer Langeland Knudsen", email = "kristofferlknudsen@gradientsoftware.net" },
+            { name = "Bilal Tasdelen", email = "tasdelen@usc.edu" }]
+license = { file = "LICENSE.txt" }
+dependencies = [
+    "cycler",
+    "h5py",
+    "ismrmrd",
+    "kiwisolver",
+    "matplotlib",
+    "numpy",
+    "pyparsing",
+    "PySide6",
+    "python-dateutil",
+    "six",
+    "scipy"
+]
+[project.scripts]
+ismrmrdviewer = "ismrmrdviewer.__main__:main"
+
+# [tool.setuptools]
+# packages = ["ismrmrdviewer"]
+# package-dir = { "" = "src" }
