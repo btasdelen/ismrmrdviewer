@@ -68,7 +68,6 @@ class ImageViewer(QTW.QWidget):
         self.selected['Repetition'].setMaximum(self.nrep - 1)
         self.selected['Slice'].setMaximum(self.nslice - 1)
         self.selected['Contrast'].setMaximum(self.ncontrast - 1)
-        # TODO: We can disable widgets for singleton dimensions
 
         self.animate = QTW.QPushButton()
         self.animate.setCheckable(True)
@@ -205,6 +204,14 @@ class ImageViewer(QTW.QWidget):
 
         self.selected['Channel'].setMaximum(self.fetch_image(self.repetition(), self.set(), self.phase(), self.slice(), self.contrast()).shape[1]-1)
         # self.selected['Slice'].setMaximum(self.fetch_image(self.repetition(), self.set(), self.phase()).shape[2]-1)
+
+        # Disable widgets for singleton dimensions
+        for dim_i, dim in enumerate(DIMS):
+            if self.selected[dim].maximum() == 0:
+                self.dim_buttons[dim].setEnabled(False)
+                self.selected[dim].setEnabled(False)
+                self.dim_buttons[dim].setVisible(False)
+                self.selected[dim].setVisible(False)
 
         self.update_image()
 
