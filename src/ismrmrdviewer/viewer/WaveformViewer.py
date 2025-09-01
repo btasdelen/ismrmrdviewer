@@ -1,16 +1,18 @@
 
 import logging
 
-from PySide6 import QtWidgets, QtCore, QtGui
+from PySide6 import QtWidgets, QtCore
+from PySide6 import QtWidgets as QTW
 from PySide6.QtCore import Qt
 
 import numpy as np
 import matplotlib as mpl
+import matplotlib.pyplot as plt
 
-from matplotlib.backends.backend_qt5agg import FigureCanvas
+from matplotlib.backends.backend_qtagg import FigureCanvas
 from .AcquisitionViewer import AcquisitionTable
 
-from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
+from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
 from .utils import CachedDataset
 
 # RR: example waveform headers are not arrays
@@ -99,12 +101,13 @@ class WaveformControlGUI(QtWidgets.QWidget):
 
 
 
+
 class WaveformPlotter(FigureCanvas):
 
     def __init__(self):
 
         self.figure = mpl.figure.Figure()
-        self.axis = self.figure.subplots(2, 1, sharex='col')
+        self.axis = np.atleast_1d(self.figure.subplots(1, 1, sharex='col'))
         self.figure.subplots_adjust(hspace=0)
 
         self.legend = mpl.legend.Legend(self.figure, [], [])
@@ -123,6 +126,21 @@ class WaveformPlotter(FigureCanvas):
             wave_data = formatter(waveform.data.T)
             for chan, wave in enumerate(wave_data.T):
                 self.axis[0].plot(x_scale, wave, label=labeler(waveform.scan_counter,chan))
+
+        handles, labels = self.axis[0].get_legend_handles_labels()
+        self.legend = mpl.legend.Legend(self.figure, handles, labels)
+        self.figure.legends[0] = self.legend
+
+        self.figure.canvas.draw()
+
+    def plot_concat(self, waveforms,  formatter, labeler):
+
+        self.axis[0].clear()
+        wave_data = np.concatenate([formatter(waveform.data.T) for waveform in waveforms])
+        x_step = waveforms[0].sample_time_us
+        x_scale = np.arange(0, wave_data.shape[0] * x_step, x_step)*1e-6
+        self.axis[0].plot(x_scale, wave_data)
+        self.axis[0].set_xlabel("Time [s]")
 
         handles, labels = self.axis[0].get_legend_handles_labels()
         self.legend = mpl.legend.Legend(self.figure, handles, labels)
@@ -157,6 +175,10 @@ class WaveformViewer(QtWidgets.QSplitter):
         self.bottom_view.addWidget(self.waveform_gui)
         self.waveform_gui.channel_selector.currentIndexChanged.connect(self.selection_changed)
 
+        self.concat_btn = QtWidgets.QPushButton("Plot Whole Waveform")
+        self.concat_btn.clicked.connect(self.plot_whole_waveform)
+        self.bottom_view.addWidget(self.concat_btn)
+
         self.addWidget(self.waveforms)
         self.addWidget(self.canvas)
         self.addWidget(self.bottom_view)
@@ -181,3 +203,10 @@ class WaveformViewer(QtWidgets.QSplitter):
         waveforms = [self.model.waveforms[idx] for idx in
                         indices]
         self.canvas.plot(waveforms, self.waveform_gui.transform_waveform, self.waveform_gui.label)
+
+    def plot_whole_waveform(self):
+        indices = list([idx.row() for idx in self.waveforms.selectedIndexes()])
+        sel_id = self.model.waveforms[indices[-1]].waveform_id
+        waveforms = [wf for wf in self.model.waveforms if wf.waveform_id == sel_id]
+        self.canvas.plot_concat(waveforms, self.waveform_gui.transform_waveform, self.waveform_gui.label)
+
