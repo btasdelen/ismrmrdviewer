@@ -26,8 +26,8 @@ dependencies = [
 ismrmrdviewer = "ismrmrdviewer.__main__:main"
 
 [tool.setuptools]
-packages = ["ismrmrdviewer"]
-package-dir = { "" = "src" }
+packages = ["ismrmrdviewer", "ismrmrdviewer.ui", "ismrmrdviewer.viewer"]
+package-dir = {"" = "src"}
 
 [tool.setuptools.package-data]
 ismrmrdviewer = ["resources/icons/*.png", "resources/icons/*.svg"]
