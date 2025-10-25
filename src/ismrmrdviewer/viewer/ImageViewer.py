@@ -14,6 +14,8 @@ from matplotlib import animation
 from functools import cache
 import ismrmrd
 
+from importlib.resources import files
+
 DIMS = ('Instance', 'Repetition', 'Set', 'Phase', 'Channel', 'Slice', 'Contrast')
 
 class ImageViewer(QTW.QWidget):
@@ -104,8 +106,9 @@ class ImageViewer(QTW.QWidget):
 
         # Image rotation/flip controls
         # TODO: What if we don't have these icons on the system? Need local fallback icons. Maybe from arrShow project?
-        icon_rot_ccw = QIcon.fromTheme("object-rotate-left")
-        icon_rot_cw = QIcon.fromTheme("object-rotate-right")
+        icon_path = files('ismrmrdviewer').joinpath('resources/icons')
+        icon_rot_ccw = QIcon.fromTheme(QIcon.ThemeIcon.ObjectRotateLeft, QIcon(str(icon_path.joinpath('rotLeft.png'))))
+        icon_rot_cw = QIcon.fromTheme(QIcon.ThemeIcon.ObjectRotateRight, QIcon(str(icon_path.joinpath('rotRight.png'))))
         icon_flip_h = QIcon.fromTheme("object-flip-horizontal")
         icon_flip_v = QIcon.fromTheme("object-flip-vertical")
 
