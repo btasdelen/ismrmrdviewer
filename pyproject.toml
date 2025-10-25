@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ismrmrdviewer"
-version = "0.3.0"
+version = "0.3.2"
 description = "Simple tool for viewing ISMRMRD data."
 authors = [{ name = "Kristoffer Langeland Knudsen", email = "kristofferlknudsen@gradientsoftware.net" },
             { name = "Bilal Tasdelen", email = "tasdelen@usc.edu" }]
