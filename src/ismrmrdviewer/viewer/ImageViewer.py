@@ -41,7 +41,7 @@ class ImageViewer(QTW.QWidget):
         self.nslice = int(np.max(self.container.images.headers['slice'])+1)
         self.ncontrast = int(np.max(self.container.images.headers['contrast'])+1)
 
-        self.nimg = int(len(self.container.images)/self.nphase/self.nset/self.nrep/self.nslice/self.ncontrast) # TODO: Remove this, as it is broken and unnecessary if we handle everything right.
+        self.nimg = max(int(len(self.container.images)/self.nphase/self.nset/self.nrep/self.nslice/self.ncontrast), 1) # TODO: Remove this, as it is broken and unnecessary if we handle everything right.
 
         # Dimension controls; Add a widget with a horizontal layout
         cw = QTW.QWidget()
@@ -473,7 +473,11 @@ class ImageViewer(QTW.QWidget):
         # return None
 
     def current_frame(self):
-        im_ = self.fetch_image(self.repetition(), self.set(), self.phase(), self.slice(), self.contrast())[self.frame()][self.coil()][0]
+        fim_ = self.fetch_image(self.repetition(), self.set(), self.phase(), self.slice(), self.contrast())
+        if 0 in fim_.shape:
+            return np.zeros(fim_.shape[-2:])
+        else:
+            im_ = fim_[self.frame()][self.coil()][0]
         if self.fliph_:
             im_ = np.flip(im_, axis=1)
         if self.flipv_:
