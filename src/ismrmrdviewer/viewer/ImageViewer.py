@@ -16,7 +16,7 @@ import ismrmrd
 
 from importlib.resources import files
 
-DIMS = ('Instance', 'Repetition', 'Set', 'Phase', 'Channel', 'Slice', 'Contrast')
+DIMS = ('Instance', 'Repetition', 'Set', 'Phase', 'Slice', 'Contrast', 'Channel')
 
 class ImageViewer(QTW.QWidget):
 
